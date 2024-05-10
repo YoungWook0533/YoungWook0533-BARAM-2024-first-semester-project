@@ -1,0 +1,41 @@
+publisher_joint_trajectory_controller:
+  ros__parameters:
+
+    controller_name: "iiwa_arm_controller"
+    wait_sec_between_publish: 6
+
+    #goal_names: ["pos1", "pos2", "pos3", "pos4"]
+    goal_names: ["pos1"]
+
+    pos1:
+      positions: [0.785, 0.0, 0.785, 0.785, 0.785, 0.785, 0.785]
+      velocities: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      accelerations: [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0]
+      effort: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # pos2:
+    #   positions: [0.0, -0.2, 0.0, -0.785, 0.785, 0.0, 0.0]
+    #   velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   effort: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # pos3:
+    #   positions: [-0.785, 0.2, 0.0, 0.785, -0.785, 0.0, -0.785]
+    #   velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   effort: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # pos4:
+    #   positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    #   effort: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    joints:
+      - joint_a1
+      - joint_a2
+      - joint_a3
+      - joint_a4
+      - joint_a5
+      - joint_a6
+      - joint_a7
