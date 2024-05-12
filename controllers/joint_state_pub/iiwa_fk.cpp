@@ -23,7 +23,7 @@ private:
         auto message = std_msgs::msg::Float32MultiArray();
         std::vector<double> double_angles;
 
-        std::cout << "Joint angles : ";
+        std::cout << "Enter joint angles : ";
         for (size_t i = 0; i < 7; ++i)
         {
             double angle;
@@ -43,9 +43,7 @@ private:
         // Set the precision for output
         std::cout << std::fixed << std::setprecision(6);
 
-        std::cout << "T0_7:" << std::endl;
-        std::cout << T0_7 << std::endl;
-        std::cout << "Position(x,y,z):" << T0_7(0,3) << " " << T0_7(1,3) << " " << T0_7(2,3) << std::endl;
+        std::cout << "T0_7:" << std::endl<< T0_7 << std::endl<< "Position(x,y,z):" << T0_7(0,3) << " " << T0_7(1,3) << " " << T0_7(2,3) << std::endl;;
 
         publisher_->publish(message);
     }

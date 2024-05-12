@@ -46,15 +46,13 @@ private:
         // Update joint angles from received data
         if (msg->data.size() == joint_angles_.size())
         {
-            for (size_t i = 0; i < joint_angles_.size(); ++i)
-            {
-                joint_angles_[i] = static_cast<double>(msg->data[i]);
-            }
             std::cout << "Recieved joint angles : ";
             for (size_t i = 0; i < joint_angles_.size(); ++i)
             {
+                joint_angles_[i] = static_cast<double>(msg->data[i]);
                 std::cout << joint_angles_[i]<< " ";
             }
+            
             std::cout << std::endl;
             
         }

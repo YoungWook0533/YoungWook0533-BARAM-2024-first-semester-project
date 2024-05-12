@@ -33,11 +33,12 @@ include_directories(
 ament_target_dependencies(joint_state_pub
   rclcpp
   std_msgs
-  sensor_msgs  # Link against sensor_msgs
+  sensor_msgs
 )
 ament_target_dependencies(iiwa_ik
   rclcpp
   std_msgs
+  sensor_msgs
   Eigen3
 )
 ament_target_dependencies(iiwa_fk
