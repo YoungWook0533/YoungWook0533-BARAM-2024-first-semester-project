@@ -3,16 +3,17 @@
 #include <Eigen/Dense>
 
 using namespace std::chrono_literals;
+using namespace Eigen;
 
-class New_AnglePublisher : public rclcpp::Node
+class IK_AnglePublisher : public rclcpp::Node
 {
   public:
-    New_AnglePublisher()
-    : Node("new_angle_publisher")
+    IK_AnglePublisher()
+    : Node("ik_angle_publisher")
     {
-      publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("new_angles", 10);
+      publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("ik_angles", 10);
       timer_ = this->create_wall_timer(
-      1000ms, std::bind(&New_AnglePublisher::publish_angles, this));
+      1000ms, std::bind(&IK_AnglePublisher::publish_angles, this));
     }
 
   private:
@@ -21,8 +22,8 @@ class New_AnglePublisher : public rclcpp::Node
         auto message = std_msgs::msg::Float32MultiArray();
         std::vector<double> double_angles;
 
-        std::cout << "Enter new angles (separated by spaces): ";
-        for (size_t i = 0; i < 7; ++i)
+        std::cout << "Enter desired position&orientation : ";
+        for (size_t i = 0; i < 6; ++i)
         {
             double angle;
             std::cin >> angle;
@@ -41,7 +42,7 @@ class New_AnglePublisher : public rclcpp::Node
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<New_AnglePublisher>();
+  auto node = std::make_shared<IK_AnglePublisher>();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

@@ -50,6 +50,13 @@ private:
             {
                 joint_angles_[i] = static_cast<double>(msg->data[i]);
             }
+            std::cout << "Recieved joint angles : ";
+            for (size_t i = 0; i < joint_angles_.size(); ++i)
+            {
+                std::cout << joint_angles_[i]<< " ";
+            }
+            std::cout << std::endl;
+            
         }
     }
 
