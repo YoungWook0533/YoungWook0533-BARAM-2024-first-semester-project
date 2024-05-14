@@ -10,15 +10,15 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 # Add executable
-add_executable(joint_state_pub joint_state_pub/joint_state_pub.cpp)
-add_executable(iiwa_ik joint_state_pub/iiwa_ik.cpp)
-add_executable(iiwa_fk joint_state_pub/iiwa_fk.cpp)
+add_executable(joint_traj_pub joint_traj_pub/joint_traj_pub.cpp)
+add_executable(iiwa_ik joint_traj_pub/iiwa_ik.cpp)
+add_executable(iiwa_fk joint_traj_pub/iiwa_fk.cpp)
 
 # Include directoriess
 include_directories(
@@ -30,15 +30,14 @@ include_directories(
 )
 
 # Link dependencies
-ament_target_dependencies(joint_state_pub
+ament_target_dependencies(joint_traj_pub
   rclcpp
   std_msgs
-  sensor_msgs
+  trajectory_msgs
 )
 ament_target_dependencies(iiwa_ik
   rclcpp
   std_msgs
-  sensor_msgs
   Eigen3
 )
 ament_target_dependencies(iiwa_fk
@@ -56,7 +55,7 @@ target_link_libraries(iiwa_fk
 )
 
 # Install executable
-install(TARGETS joint_state_pub
+install(TARGETS joint_traj_pub
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS iiwa_ik

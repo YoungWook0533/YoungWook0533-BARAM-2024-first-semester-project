@@ -76,30 +76,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             'use_sim',
-            default_value='false',
-            description='Start robot in Gazebo simulation.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'use_fake_hardware',
             default_value='true',
-            description='Start robot with fake hardware mirroring command to its states.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'use_planning',
-            default_value='false',
-            description='Start robot with Moveit2 `move_group` planning \
-                         config for Pilz and OMPL.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'use_servoing',
-            default_value='false',
-            description='Start robot with Moveit2 servoing.',
+            description='Start robot in Gazebo simulation.',
         )
     )
     declared_arguments.append(
@@ -118,30 +96,9 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
-            'robot_ip',
-            default_value='192.170.10.2',
-            description='Robot IP of FRI interface',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'robot_port',
-            default_value='30200',
-            description='Robot port of FRI interface.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
             'initial_positions_file',
             default_value='initial_positions.yaml',
             description='Configuration file of robot initial positions for simulation.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'command_interface',
-            default_value='position',
-            description='Robot command interface [position|velocity|effort].',
         )
     )
     declared_arguments.append(
@@ -159,15 +116,9 @@ def generate_launch_description():
     description_file = LaunchConfiguration('description_file')
     prefix = LaunchConfiguration('prefix')
     use_sim = LaunchConfiguration('use_sim')
-    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
-    use_planning = LaunchConfiguration('use_planning')
-    use_servoing = LaunchConfiguration('use_servoing')
     robot_controller = LaunchConfiguration('robot_controller')
     start_rviz = LaunchConfiguration('start_rviz')
-    robot_ip = LaunchConfiguration('robot_ip')
-    robot_port = LaunchConfiguration('robot_port')
     initial_positions_file = LaunchConfiguration('initial_positions_file')
-    command_interface = LaunchConfiguration('command_interface')
     base_frame_file = LaunchConfiguration('base_frame_file')
     namespace = LaunchConfiguration('namespace')
 
@@ -186,20 +137,8 @@ def generate_launch_description():
             'use_sim:=',
             use_sim,
             ' ',
-            'use_fake_hardware:=',
-            use_fake_hardware,
-            ' ',
-            'robot_ip:=',
-            robot_ip,
-            ' ',
-            'robot_port:=',
-            robot_port,
-            ' ',
             'initial_positions_file:=',
             initial_positions_file,
-            ' ',
-            'command_interface:=',
-            command_interface,
             ' ',
             'base_frame_file:=',
             base_frame_file,
@@ -219,42 +158,6 @@ def generate_launch_description():
     )
 
     robot_description = {'robot_description': robot_description_content}
-
-    # Running with Moveit2 planning
-    iiwa_planning_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            FindPackageShare('iiwa_bringup'),
-            '/launch',
-            '/iiwa_planning.launch.py'
-        ]),
-        launch_arguments={
-            'description_package': description_package,
-            'description_file': description_file,
-            'prefix': prefix,
-            'start_rviz': start_rviz,
-            'base_frame_file': base_frame_file,
-            'namespace': namespace,
-            'use_sim': use_sim,
-        }.items(),
-        condition=IfCondition(use_planning),
-    )
-
-    # Running with Moveit2 servoing
-    iiwa_servoing_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            FindPackageShare('iiwa_bringup'),
-            '/launch',
-            '/iiwa_servoing.launch.py'
-        ]),
-        launch_arguments={
-            'description_package': description_package,
-            'description_file': description_file,
-            'prefix': prefix,
-            'base_frame_file': base_frame_file,
-            'namespace': namespace,
-        }.items(),
-        condition=IfCondition(use_servoing),
-    )
 
     robot_controllers = PathJoinSubstitution(
         [
@@ -288,10 +191,7 @@ def generate_launch_description():
         name='rviz2',
         output='log',
         arguments=['-d', rviz_config_file],
-        parameters=[
-            robot_description,
-        ],
-        condition=UnlessCondition(use_planning),
+        parameters=[robot_description],
     )
     iiwa_simulation_world = PathJoinSubstitution(
         [FindPackageShare(description_package),
@@ -322,14 +222,6 @@ def generate_launch_description():
         executable='spawner',
         arguments=['joint_state_broadcaster', '--controller-manager',
                    [namespace, 'controller_manager']],
-    )
-
-    external_torque_broadcaster_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['ets_state_broadcaster', '--controller-manager',
-                   [namespace, 'controller_manager']],
-        condition=UnlessCondition(use_sim),
     )
 
     robot_controller_spawner = Node(
@@ -376,15 +268,16 @@ def generate_launch_description():
     nodes = [
         gazebo,
         control_node,
-        iiwa_planning_launch,
-        iiwa_servoing_launch,
         spawn_entity,
         robot_state_pub_node,
         delay_joint_state_broadcaster_spawner_after_control_node,
         delay_joint_state_broadcaster_spawner_after_spawn_entity,
         delay_rviz_after_joint_state_broadcaster_spawner,
-        external_torque_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes)
+
+#ros2 run controller_manager spawner 'joint_state_broadcaster' '--controller-manager' 'controller_manager'
+#ros2 run controller_manager spawner "iiwa_arm_controller" '--controller-manager' 'controller_manager'
+#ros2 topic pub --once /iiwa_arm_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{joint_names: ['joint_a1', 'joint_a2', 'joint_a3', 'joint_a4', 'joint_a5', 'joint_a6', 'joint_a7'], points: [{positions: [0.0, 1.57, 0.0, 1.57, 0.0, 0.0, 0.0], time_from_start: {sec: 5, nanosec: 0}}]}"

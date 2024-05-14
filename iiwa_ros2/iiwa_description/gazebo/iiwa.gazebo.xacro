@@ -2,7 +2,6 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="iiwa_gazebo" params="runtime_config_package controllers_file namespace prefix">
 
-    <!-- ros_control plugin -->
     <gazebo>
       <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
         <xacro:if value="${namespace != '/'}">
@@ -15,7 +14,6 @@
       </plugin>
     </gazebo>
 
-    <!-- color -->
     <gazebo reference="${prefix}link_7">
       <material>Gazebo/Gray</material>
     </gazebo>

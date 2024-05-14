@@ -170,7 +170,7 @@
       </collision>
       <inertial>
         <origin xyz="0 0 0.02" rpy="0 0 0"/>
-        <mass value="${0.3 / 0.308 * 0.44}"/> <!--this is for the MFT Pneumatisch flange-->
+        <mass value="${0.3 / 0.308 * 0.44}"/>
         <inertia ixx="0.01"  ixy="0"  ixz="0" iyy="0.01" iyz="0" izz="0.01" />
       </inertial>
   </link>

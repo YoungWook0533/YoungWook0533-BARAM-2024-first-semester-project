@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
-<!-- Kuka iiwa 7DoF manipulator -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="iiwa">
 
-    <!-- Enable setting arguments from the launch file -->
     <xacro:arg name="use_sim" default="false" />
     <xacro:arg name="use_fake_hardware" default="true" />
     <xacro:arg name="prefix" default="" />
@@ -18,16 +16,12 @@
 
     <xacro:property name="description_package" value="$(arg description_package)"/>
 
-    <!-- Import iiwa urdf file -->
     <xacro:include filename="$(find ${description_package})/urdf/iiwa.urdf.xacro" />
 
-    <!-- Import iiwa ros2_control description -->
     <xacro:include filename="$(find ${description_package})/ros2_control/iiwa.r2c_hardware.xacro" />
 
-    <!-- Import all Gazebo-customization elements -->
     <xacro:include filename="$(find ${description_package})/gazebo/iiwa.gazebo.xacro"/>
 
-    <!-- Used for fixing robot -->
     <link name="world"/>
     <gazebo reference="world">
         <static>true</static>

@@ -43,7 +43,7 @@ private:
         // Set the precision for output
         std::cout << std::fixed << std::setprecision(6);
 
-        std::cout << "T0_7:" << std::endl<< T0_7 << std::endl<< "Position(x,y,z):" << T0_7(0,3) << " " << T0_7(1,3) << " " << T0_7(2,3) << std::endl;;
+        std::cout << "T0_7 : " << std::endl<< T0_7 << std::endl<< "Position(x,y,z) : " << T0_7(0,3) << " " << T0_7(1,3) << " " << T0_7(2,3) << std::endl;;
 
         publisher_->publish(message);
     }
