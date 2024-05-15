@@ -1,7 +1,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <Eigen/Dense>
-#include <iomanip> //for formatting calculated result
+#include <iomanip>
 
 using namespace std::chrono_literals;
 using namespace Eigen;

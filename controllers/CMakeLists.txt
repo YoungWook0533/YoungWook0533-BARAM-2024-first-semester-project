@@ -9,16 +9,18 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
+find_package(control_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 # Add executable
-add_executable(joint_traj_pub joint_traj_pub/joint_traj_pub.cpp)
-add_executable(iiwa_ik joint_traj_pub/iiwa_ik.cpp)
-add_executable(iiwa_fk joint_traj_pub/iiwa_fk.cpp)
+add_executable(joint_traj_action joint_traj_action/joint_traj_action.cpp)
+add_executable(iiwa_ik joint_traj_action/iiwa_ik.cpp)
+add_executable(iiwa_fk joint_traj_action/iiwa_fk.cpp)
 
 # Include directoriess
 include_directories(
@@ -30,10 +32,12 @@ include_directories(
 )
 
 # Link dependencies
-ament_target_dependencies(joint_traj_pub
+ament_target_dependencies(joint_traj_action
   rclcpp
+  rclcpp_action
   std_msgs
   trajectory_msgs
+  control_msgs
 )
 ament_target_dependencies(iiwa_ik
   rclcpp
@@ -55,7 +59,7 @@ target_link_libraries(iiwa_fk
 )
 
 # Install executable
-install(TARGETS joint_traj_pub
+install(TARGETS joint_traj_action
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS iiwa_ik
@@ -63,6 +67,9 @@ install(TARGETS iiwa_ik
 
 install(TARGETS iiwa_fk
   DESTINATION lib/${PROJECT_NAME})    
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
