@@ -40,7 +40,7 @@ private:
 
         Matrix4d T0_7 = computeForwardKinematics(double_angles);
 
-        // Set the precision for output
+        // Set the precision for output(6digits)
         std::cout << std::fixed << std::setprecision(6);
 
         std::cout << "T0_7 : " << std::endl<< T0_7 << std::endl<< "Position(x,y,z) : " << T0_7(0,3) << " " << T0_7(1,3) << " " << T0_7(2,3) << std::endl;;

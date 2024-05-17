@@ -11,6 +11,7 @@ find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 # uncomment the following section in order to fill in
@@ -28,7 +29,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${rclcpp_INCLUDE_DIRS}
   ${std_msgs_INCLUDE_DIRS}
-  ${sensor_msgs_INCLUDE_DIRS}  # Include sensor_msgs directories
+  ${sensor_msgs_INCLUDE_DIRS}
 )
 
 # Link dependencies
@@ -42,6 +43,7 @@ ament_target_dependencies(joint_traj_action
 ament_target_dependencies(iiwa_ik
   rclcpp
   std_msgs
+  sensor_msgs
   Eigen3
 )
 ament_target_dependencies(iiwa_fk

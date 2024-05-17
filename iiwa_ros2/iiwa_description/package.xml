@@ -20,5 +20,7 @@
 
   <export>
     <build_type>ament_cmake</build_type>
+    <!--This resolved gazebo problems-->
+    <gazebo_ros gazebo_model_path="${prefix}/.."/>    
   </export>
 </package>
