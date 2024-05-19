@@ -20,7 +20,7 @@ public:
             "joint_states", 10, std::bind(&IK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
 
         timer_ = this->create_wall_timer(
-            50ms, std::bind(&IK_AnglePublisher::publish_angles, this)); // Default state pub rate set to 0.05s
+            100ms, std::bind(&IK_AnglePublisher::publish_angles, this)); // Default state pub rate set to 0.1s
     }
 
 private:
@@ -160,7 +160,7 @@ private:
         u_d.tail<3>() = rpy_des;
 
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Assuming zero desired velocity for simplicity
-        Eigen::MatrixXd Kp = 3.0 * Eigen::MatrixXd::Identity(6, 6); // Increased gain for proportional control
+        Eigen::MatrixXd Kp = 7.0 * Eigen::MatrixXd::Identity(6, 6); // Increased gain for proportional control
 
         Eigen::VectorXd gradH(7);
         gradH = 2 * Eigen::VectorXd::Map(current_angles.data(), 7); // Optimal target function : minimum joint movements
@@ -189,10 +189,11 @@ private:
         for (size_t i = 0; i < 7; ++i)
         {
             Eigen::Matrix4d Ti = Eigen::Matrix4d::Identity();
-            Ti.block<3, 3>(0, 0) = Eigen::AngleAxisd(joint_angles[i], Eigen::Vector3d(0, 0, 1)).toRotationMatrix();
-            Ti(0, 3) = a[i];
-            Ti(2, 3) = d[i];
-            Ti.block<3, 3>(0, 0) *= Eigen::AngleAxisd(alpha[i], Eigen::Vector3d(1, 0, 0)).toRotationMatrix();
+            // screw_z(d_i,theta_i)*screw_x(a_i,alpha_i)
+            Ti = (Eigen::AngleAxisd(joint_angles[i], Eigen::Vector3d(0, 0, 1)) * 
+                Eigen::Translation3d(0, 0, d[i]) * 
+                Eigen::Translation3d(a[i], 0, 0) * 
+                Eigen::AngleAxisd(alpha[i], Eigen::Vector3d(1, 0, 0))).matrix();
             T *= Ti;
         }
 
@@ -210,10 +211,11 @@ private:
         for (size_t i = 0; i < 7; ++i)
         {
             Eigen::Matrix4d Ti = Eigen::Matrix4d::Identity();
-            Ti.block<3, 3>(0, 0) = Eigen::AngleAxisd(joint_angles[i], Eigen::Vector3d(0, 0, 1)).toRotationMatrix();
-            Ti(0, 3) = a[i];
-            Ti(2, 3) = d[i];
-            Ti.block<3, 3>(0, 0) *= Eigen::AngleAxisd(alpha[i], Eigen::Vector3d(1, 0, 0)).toRotationMatrix();
+            // screw_z(d_i,theta_i)*screw_x(a_i,alpha_i)
+            Ti = (Eigen::AngleAxisd(joint_angles[i], Eigen::Vector3d(0, 0, 1)) * 
+                Eigen::Translation3d(0, 0, d[i]) * 
+                Eigen::Translation3d(a[i], 0, 0) * 
+                Eigen::AngleAxisd(alpha[i], Eigen::Vector3d(1, 0, 0))).matrix();
             T *= Ti;
         }
 

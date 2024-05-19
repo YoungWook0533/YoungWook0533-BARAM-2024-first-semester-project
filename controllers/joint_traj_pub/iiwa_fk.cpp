@@ -17,7 +17,7 @@ public:
             "joint_states", 10, std::bind(&FK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
 
         timer_ = this->create_wall_timer(
-            50ms, std::bind(&FK_AnglePublisher::publish_angles, this));
+            100ms, std::bind(&FK_AnglePublisher::publish_angles, this));
     }
 
 private:
