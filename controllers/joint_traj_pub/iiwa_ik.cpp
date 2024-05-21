@@ -159,11 +159,14 @@ private:
         u_d.head<3>() = p_des;
         u_d.tail<3>() = rpy_des;
 
-        Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Assuming zero desired velocity for simplicity
-        Eigen::MatrixXd Kp = 7.0 * Eigen::MatrixXd::Identity(6, 6); // Increased gain for proportional control
+        Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
+        Eigen::MatrixXd Kp = 7.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
+        // Define the gradient for the optimal target function
         Eigen::VectorXd gradH(7);
-        gradH = 2 * Eigen::VectorXd::Map(current_angles.data(), 7); // Optimal target function : minimum joint movements
+        gradH.setZero();
+        gradH(0) = 2 * current_angles[0]; // Gradient for q1^2
+        gradH(5) = 2 * current_angles[5]; // Gradient for q2^2
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
 
