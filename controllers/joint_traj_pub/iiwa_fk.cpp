@@ -53,27 +53,27 @@ private:
     }
 
     Matrix4d computeForwardKinematics(const std::vector<double> &joint_angles)
-{
-    // Define DH parameters
-    const double d[7] = {0.36, 0.0, 0.42, 0.0, 0.4, 0.0, 0.126};
-    const double a[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    const double alpha[7] = {-M_PI / 2, M_PI / 2, M_PI / 2, -M_PI / 2, -M_PI / 2, M_PI / 2, 0};
-
-    Matrix4d T = Matrix4d::Identity();
-
-    for (size_t i = 0; i < 7; ++i)
     {
-        Matrix4d Ti = Matrix4d::Identity();
-        Ti.block<3, 3>(0, 0) = (AngleAxisd(joint_angles[i], Vector3d(0, 0, 1)) *
-                                AngleAxisd(alpha[i], Vector3d(1, 0, 0))).matrix();
-        Ti(0, 3) = a[i];
-        Ti(2, 3) = d[i];
+        // Define DH parameters
+        const double d[7] = {0.36, 0.0, 0.42, 0.0, 0.4, 0.0, 0.126};
+        const double a[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        const double alpha[7] = {-M_PI / 2, M_PI / 2, M_PI / 2, -M_PI / 2, -M_PI / 2, M_PI / 2, 0};
 
-        T *= Ti;
+        Matrix4d T = Matrix4d::Identity();
+
+        for (size_t i = 0; i < 7; ++i)
+        {
+            Matrix4d Ti = Matrix4d::Identity();
+            Ti.block<3, 3>(0, 0) = (AngleAxisd(joint_angles[i], Vector3d(0, 0, 1)) *
+                                    AngleAxisd(alpha[i], Vector3d(1, 0, 0))).matrix();
+            Ti(0, 3) = a[i];
+            Ti(2, 3) = d[i];
+
+            T *= Ti;
+        }
+
+        return T;
     }
-
-    return T;
-}
 
 
     Eigen::Vector3d rotationMatrixToRPY(const Eigen::Matrix3d &R)

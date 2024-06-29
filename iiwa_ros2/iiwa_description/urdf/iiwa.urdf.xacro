@@ -16,7 +16,7 @@
   </joint>
 
   <joint name="${prefix}iiwa_base_joint" type="fixed">
-      <origin rpy="0.0 0 0" xyz="0 0 0"/>
+      <origin rpy="0.0 0 0" xyz="0 0 0.5"/>
       <parent link="${prefix}iiwa_base"/>
       <child link="${prefix}link_0"/>
   </joint>

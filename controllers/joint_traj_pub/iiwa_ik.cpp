@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <iomanip>
+#include <chrono>
 
 using namespace std::chrono_literals;
 using namespace Eigen;
@@ -40,17 +41,26 @@ private:
 
     void publish_angles()
     {
-        auto message = std_msgs::msg::Float32MultiArray();
-
         if (first_time)
         {
             first_time = false;
-            double_point.resize(6);
+            double_point.resize(7); // Resize to hold position (x, y, z) and quaternion (x, y, z, w)
             std::cout << "Enter desired position (x, y, z) and orientation (roll, pitch, yaw): ";
             for (size_t i = 0; i < 6; ++i)
             {
                 std::cin >> double_point[i];
             }
+
+            // Convert roll, pitch, yaw to quaternion
+            AngleAxisd rollAngle(double_point[3], Vector3d::UnitX());
+            AngleAxisd pitchAngle(double_point[4], Vector3d::UnitY());
+            AngleAxisd yawAngle(double_point[5], Vector3d::UnitZ());
+            Quaterniond q = yawAngle * pitchAngle * rollAngle;
+
+            double_point[3] = q.x();
+            double_point[4] = q.y();
+            double_point[5] = q.z();
+            double_point[6] = q.w();
         }
 
         if (current_angles.size() != 7)
@@ -59,23 +69,63 @@ private:
             return;
         }
 
-        std::vector<double> new_angles = calculate_ik(double_point);
+        std::vector<double> initial_angles = current_angles;
+        std::vector<double> new_angles = initial_angles;
+
+        int i = 0;
+        Eigen::Vector3d desired_pos(double_point[0], double_point[1], double_point[2]);
+        Quaterniond desired_quat(double_point[6], double_point[3], double_point[4], double_point[5]);
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        while (true)
+        {
+            new_angles = calculate_ik(double_point, initial_angles);
+            initial_angles = new_angles;
+            Eigen::Vector3d temp_pos = forward_kinematics_position(initial_angles);
+            Quaterniond temp_quat = forward_kinematics_orientation(initial_angles);
+
+            double pos_error = (temp_pos - desired_pos).norm();
+            double ori_error = temp_quat.angularDistance(desired_quat);
+            double total_error = pos_error + ori_error;
+
+            i++;
+
+            if (i > 550 && total_error < 0.15)
+            {
+                break;
+            }
+
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_time = current_time - start_time;
+
+            if (elapsed_time.count() > 5.0)
+            {
+                std::cout << "Failed to calculate solution" << std::endl;
+                rclcpp::shutdown();
+                return;
+            }
+        }
+
+        auto message = std_msgs::msg::Float32MultiArray();
 
         for (const auto &angle : new_angles)
         {
             message.data.push_back(static_cast<float>(angle));
         }
+
         // Print messages for debug
+        Eigen::Vector3d final_pos = forward_kinematics_position(new_angles);
+        Quaterniond final_quat = forward_kinematics_orientation(new_angles);
+        Eigen::Vector3d rpy_des = quaternionToRPY(desired_quat);
+        Eigen::Vector3d rpy_final = quaternionToRPY(final_quat);
+
         std::cout << std::fixed << std::setprecision(6);
         std::cout << "Desired Position: [" << double_point[0] << ", " << double_point[1] << ", " << double_point[2] << "]" << std::endl;
-        std::cout << "Desired Orientation: [" << double_point[3] << ", " << double_point[4] << ", " << double_point[5] << "]" << std::endl;
-        std::cout << "Current Angles: ";
-        for (const auto &angle : current_angles)
-        {
-            std::cout << angle << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "New Angles: ";
+        std::cout << "Desired Orientation: [" << rpy_des[0] << ", " << rpy_des[1] << ", " << rpy_des[2] << "]" << std::endl;
+        std::cout << "Final Position: [" << final_pos[0] << ", " << final_pos[1] << ", " << final_pos[2] << "]" << std::endl;
+        std::cout << "Final Orientation: [" << rpy_final[0] << ", " << rpy_final[1] << ", " << rpy_final[2] << "]" << std::endl;
+        std::cout << "Final Angles: ";
         for (const auto &angle : new_angles)
         {
             std::cout << angle << " ";
@@ -83,6 +133,19 @@ private:
         std::cout << std::endl;
 
         publisher_->publish(message);
+        
+        // Shutdown the node after publishing
+        rclcpp::shutdown();
+    }
+
+    Eigen::Vector3d quaternionToRPY(const Quaterniond &q)
+    {
+        Eigen::Matrix3d R = q.toRotationMatrix();
+        Eigen::Vector3d rpy;
+        rpy[0] = std::atan2(R(2, 1), R(2, 2)); // Roll
+        rpy[1] = std::atan2(-R(2, 0), std::sqrt(R(2, 1) * R(2, 1) + R(2, 2) * R(2, 2))); // Pitch
+        rpy[2] = std::atan2(R(1, 0), R(0, 0)); // Yaw
+        return rpy;
     }
 
     Eigen::MatrixXd jacobian(const std::vector<double> &joint_angles)
@@ -140,37 +203,46 @@ private:
         return invJ;
     }
 
-    std::vector<double> calculate_ik(const std::vector<double> &target)
+    std::vector<double> calculate_ik(const std::vector<double> &target, const std::vector<double> &current_angles)
     {
         Eigen::Vector3d p_des(target[0], target[1], target[2]);
-        Eigen::Vector3d rpy_des(target[3], target[4], target[5]);
+        Quaterniond q_des(target[6], target[3], target[4], target[5]);
 
         Eigen::MatrixXd J = jacobian(current_angles);
         Eigen::MatrixXd invJ = computeDampedPseudoInverse(J, 0.3);
 
         Eigen::Vector3d p_cur = forward_kinematics_position(current_angles);
-        Eigen::Vector3d rpy_cur = forward_kinematics_orientation(current_angles);
+        Quaterniond q_cur = forward_kinematics_orientation(current_angles);
 
         Eigen::VectorXd u(6);
         u.head<3>() = p_cur;
-        u.tail<3>() = rpy_cur;
+        AngleAxisd angle_axis_cur(q_cur);
+        u.tail<3>() = angle_axis_cur.axis() * angle_axis_cur.angle();
 
         Eigen::VectorXd u_d(6);
         u_d.head<3>() = p_des;
-        u_d.tail<3>() = rpy_des;
+        AngleAxisd angle_axis_des(q_des);
+        u_d.tail<3>() = angle_axis_des.axis() * angle_axis_des.angle();
 
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
         Eigen::MatrixXd Kp = 7.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
         // Define the gradient for the optimal target function
+        const double joint_max_limits[7] = {2.96, 2.09, 2.96, 2.09, 2.96, 2.09, 3.05};
+        const double joint_min_limits[7] = {-2.96, -2.09, -2.96, -2.09, -2.96, -2.09, -3.05};
         Eigen::VectorXd gradH(7);
         gradH.setZero();
-        gradH(0) = 2 * current_angles[0]; // Gradient for q1^2
-        gradH(5) = 2 * current_angles[5]; // Gradient for q2^2
+        // for (size_t i = 0; i < 7; ++i)
+        // {
+        //     double qi = current_angles[i];
+        //     double qiM = joint_max_limits[i];
+        //     double qim = joint_min_limits[i];
+        //     gradH(i) = -(qi - ((qiM + qim) / 2.0)) / std::pow((qiM - qim) / 2.0, 2);
+        // }
+        gradH(1) = 2 * current_angles[1];
+        gradH(5) = 2 * current_angles[5];
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
-
-        std::cout << "Joint Velocities (q_dot): \n" << q_dot << std::endl;
 
         std::vector<double> new_angles(7);
         for (size_t i = 0; i < 7; ++i)
@@ -203,7 +275,7 @@ private:
         return T.block<3, 1>(0, 3);
     }
 
-    Eigen::Vector3d forward_kinematics_orientation(const std::vector<double> &joint_angles)
+    Quaterniond forward_kinematics_orientation(const std::vector<double> &joint_angles)
     {
         const double d[7] = {0.36, 0.0, 0.42, 0.0, 0.4, 0.0, 0.126};
         const double a[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -223,12 +295,9 @@ private:
         }
 
         Eigen::Matrix3d R = T.block<3, 3>(0, 0);
-        Eigen::Vector3d rpy;
-        rpy[0] = std::atan2(R(2, 1), R(2, 2));
-        rpy[1] = std::atan2(-R(2, 0), std::sqrt(R(2, 1) * R(2, 1) + R(2, 2) * R(2, 2)));
-        rpy[2] = std::atan2(R(1, 0), R(0, 0));
+        Quaterniond q(R);
 
-        return rpy;
+        return q;
     }
 
     bool first_time = true;

@@ -17,7 +17,7 @@ public:
         joint_names_ = {"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"};
 
         // Set the time from start
-        point_.time_from_start = rclcpp::Duration(1, 0);   // Trajectory time_from_start set to 1s
+        point_.time_from_start = rclcpp::Duration(6, 0);   // Trajectory time_from_start set to 1s
     }
 
 private:
