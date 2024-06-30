@@ -82,8 +82,11 @@ private:
         {
             new_angles = calculate_ik(double_point, initial_angles);
             initial_angles = new_angles;
-            Eigen::Vector3d temp_pos = forward_kinematics_position(initial_angles);
-            Quaterniond temp_quat = forward_kinematics_orientation(initial_angles);
+
+            Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
+            Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
+            Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
+            Quaterniond temp_quat(temp_rot);
 
             double pos_error = (temp_pos - desired_pos).norm();
             double ori_error = temp_quat.angularDistance(desired_quat);
@@ -115,8 +118,10 @@ private:
         }
 
         // Print messages for debug
-        Eigen::Vector3d final_pos = forward_kinematics_position(new_angles);
-        Quaterniond final_quat = forward_kinematics_orientation(new_angles);
+        Eigen::Matrix4d final_transform = forward_kinematics(new_angles);
+        Eigen::Vector3d final_pos = final_transform.block<3, 1>(0, 3);
+        Eigen::Matrix3d final_rot = final_transform.block<3, 3>(0, 0);
+        Quaterniond final_quat(final_rot);
         Eigen::Vector3d rpy_des = quaternionToRPY(desired_quat);
         Eigen::Vector3d rpy_final = quaternionToRPY(final_quat);
 
@@ -211,8 +216,10 @@ private:
         Eigen::MatrixXd J = jacobian(initial_angles);
         Eigen::MatrixXd invJ = computeDampedPseudoInverse(J, 0.3);
 
-        Eigen::Vector3d p_cur = forward_kinematics_position(initial_angles);
-        Quaterniond q_cur = forward_kinematics_orientation(initial_angles);
+        Eigen::Matrix4d T_cur = forward_kinematics(initial_angles);
+        Eigen::Vector3d p_cur = T_cur.block<3, 1>(0, 3);
+        Eigen::Matrix3d R_cur = T_cur.block<3, 3>(0, 0);
+        Quaterniond q_cur(R_cur);
 
         Eigen::VectorXd u(6);
         u.head<3>() = p_cur;
@@ -250,7 +257,7 @@ private:
         return new_angles;
     }
 
-    Eigen::Vector3d forward_kinematics_position(const std::vector<double> &joint_angles)
+    Eigen::Matrix4d forward_kinematics(const std::vector<double> &joint_angles)
     {
         const double d[7] = {0.36, 0.0, 0.42, 0.0, 0.4, 0.0, 0.126};
         const double a[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -269,32 +276,7 @@ private:
             T *= Ti;
         }
 
-        return T.block<3, 1>(0, 3);
-    }
-
-    Quaterniond forward_kinematics_orientation(const std::vector<double> &joint_angles)
-    {
-        const double d[7] = {0.36, 0.0, 0.42, 0.0, 0.4, 0.0, 0.126};
-        const double a[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        const double alpha[7] = {-M_PI / 2, M_PI / 2, M_PI / 2, -M_PI / 2, -M_PI / 2, M_PI / 2, 0};
-
-        Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-
-        for (size_t i = 0; i < 7; ++i)
-        {
-            Eigen::Matrix4d Ti = Eigen::Matrix4d::Identity();
-            // screw_z(d_i,theta_i)*screw_x(a_i,alpha_i)
-            Ti = (Eigen::AngleAxisd(joint_angles[i], Eigen::Vector3d(0, 0, 1)) * 
-                Eigen::Translation3d(0, 0, d[i]) * 
-                Eigen::Translation3d(a[i], 0, 0) * 
-                Eigen::AngleAxisd(alpha[i], Eigen::Vector3d(1, 0, 0))).matrix();
-            T *= Ti;
-        }
-
-        Eigen::Matrix3d R = T.block<3, 3>(0, 0);
-        Quaterniond q(R);
-
-        return q;
+        return T;
     }
 
     bool first_time = true;
