@@ -44,7 +44,7 @@ private:
         if (first_time)
         {
             first_time = false;
-            double_point.resize(7); // Resize to hold position (x, y, z) and quaternion (x, y, z, w)
+            double_point.resize(7); // position (x, y, z)  quaternion (x, y, z, w)
             std::cout << "Enter desired position (x, y, z) and orientation (roll, pitch, yaw): ";
             for (size_t i = 0; i < 6; ++i)
             {
@@ -134,7 +134,6 @@ private:
 
         publisher_->publish(message);
         
-        // Shutdown the node after publishing
         rclcpp::shutdown();
     }
 
@@ -235,8 +234,13 @@ private:
         Eigen::VectorXd gradH(7);
         gradH.setZero();
 
-        gradH(1) = 2 * initial_angles[1];
-        gradH(5) = 2 * initial_angles[5];
+        for (size_t i = 0; i < 7; ++i)
+        {
+            double qi = initial_angles[i];
+            double qiM = joint_max_limits[i];
+            double qim = joint_min_limits[i];
+            gradH(i) = -(qi - ((qiM + qim) / 2.0)) / std::pow((qiM - qim), 2);
+        }
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
 

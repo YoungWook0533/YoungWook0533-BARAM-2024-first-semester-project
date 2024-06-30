@@ -11,7 +11,7 @@ class FK_AnglePublisher : public rclcpp::Node
 {
 public:
     FK_AnglePublisher()
-    : Node("fk_angle_publisher")
+        : Node("fk_angle_publisher")
     {
         subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
             "joint_states", 10, std::bind(&FK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
@@ -46,6 +46,13 @@ private:
         // Extract RPY from T0_7
         Eigen::Vector3d rpy = rotationMatrixToRPY(T0_7.block<3, 3>(0, 0));
 
+        std::cout << "Current Joint Angles: ";
+        for (const auto &angle : current_angles)
+        {
+            std::cout << angle << " ";
+        }
+        std::cout << std::endl;
+
         std::cout << "T0_7 : " << std::endl
                   << T0_7 << std::endl
                   << "Position (x, y, z) : " << T0_7(0, 3) << " " << T0_7(1, 3) << " " << T0_7(2, 3) << std::endl
@@ -74,7 +81,6 @@ private:
 
         return T;
     }
-
 
     Eigen::Vector3d rotationMatrixToRPY(const Eigen::Matrix3d &R)
     {

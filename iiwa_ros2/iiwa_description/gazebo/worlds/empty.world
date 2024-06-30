@@ -23,6 +23,7 @@
     </gui>
 
     <model name="box">
+      <static>true</static>
       <pose>1 0 0.25 0 0 0</pose>
       <link name="link">
         <visual name="visual">
@@ -32,8 +33,8 @@
             </box>
           </geometry>
           <material>
-            <ambient>1 0 0 1</ambient>
-            <diffuse>1 0 0 1</diffuse>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
           </material>
         </visual>
         <collision name="collision">
