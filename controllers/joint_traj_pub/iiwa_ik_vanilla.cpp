@@ -208,66 +208,6 @@ private:
         return invJ;
     }
 
-    VectorXd calculateJointLimitGradient(const std::vector<double> &joint_angles)
-    {
-        VectorXd Q(7);
-        for (size_t i = 0; i < 7; ++i)
-        {
-            Q[i] = joint_angles[i];
-        }
-
-        double delta = 0.1;
-        double epsilon = 1e-6;
-        double k_qlim = 500;
-
-        VectorXd qmax(7);
-        qmax << 2.96, 2.09, 2.96, 2.09, 2.96, 2.09, 3.05;
-        VectorXd qmin(7);
-        qmin << -2.96, -2.09, -2.96, -2.09, -2.96, -2.09, -3.05;
-
-        VectorXd gradient = VectorXd::Zero(7);
-        VectorXd qtilda = VectorXd::Zero(7);
-
-        for (int i = 0; i < 7; ++i)
-        {
-            if (Q(i) > qmax(i) - delta)
-            {
-                qtilda(i) = Q(i) - (qmax(i) - delta);
-            }
-            else if (Q(i) < qmin(i) + delta)
-            {
-                qtilda(i) = Q(i) - (qmin(i) + delta);
-            }
-        }
-
-        double potential_jointlimit_at_Q = 0.5 * qtilda.transpose() * k_qlim * qtilda;
-
-        for (int i = 0; i < 7; ++i)
-        {
-            VectorXd Q_epsilon = Q;
-            Q_epsilon(i) += epsilon;
-
-            VectorXd qtilda_epsilon = VectorXd::Zero(7);
-            for (int j = 0; j < 7; ++j)
-            {
-                if (Q_epsilon(j) > qmax(j) - delta)
-                {
-                    qtilda_epsilon(j) = Q_epsilon(j) - (qmax(j) - delta);
-                }
-                else if (Q_epsilon(j) < qmin(j) + delta)
-                {
-                    qtilda_epsilon(j) = Q_epsilon(j) - (qmin(j) + delta);
-                }
-            }
-
-            double potential_jointlimit_at_Q_epsilon = 0.5 * qtilda_epsilon.transpose() * k_qlim * qtilda_epsilon;
-
-            gradient(i) = (potential_jointlimit_at_Q_epsilon - potential_jointlimit_at_Q) / epsilon;
-        }
-
-        return gradient;
-    }
-
     std::vector<double> calculate_ik(const std::vector<double> &target, const std::vector<double> &initial_angles)
     {
         Eigen::Vector3d p_des(target[0], target[1], target[2]);
@@ -294,8 +234,9 @@ private:
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
         Eigen::MatrixXd Kp = 1.5 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
-        // Calculate the joint limit gradient
-        Eigen::VectorXd gradH = calculateJointLimitGradient(initial_angles);
+        // Define the gradient for the optimal target function
+        Eigen::VectorXd gradH(7);
+        gradH.setZero();
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
 

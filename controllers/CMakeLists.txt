@@ -21,7 +21,9 @@ find_package(qpOASES REQUIRED)
 # Add executable
 add_executable(joint_traj_pub joint_traj_pub/joint_traj_pub.cpp)
 add_executable(iiwa_ik_optimized joint_traj_pub/iiwa_ik_optimized.cpp)
-add_executable(iiwa_ik joint_traj_pub/iiwa_ik.cpp)
+add_executable(iiwa_ik_vanilla joint_traj_pub/iiwa_ik_vanilla.cpp)
+add_executable(iiwa_ik_min_1_5 joint_traj_pub/iiwa_ik_min_1_5.cpp)
+add_executable(iiwa_ik_min_3_4 joint_traj_pub/iiwa_ik_min_3_4.cpp)
 add_executable(iiwa_fk joint_traj_pub/iiwa_fk.cpp)
 
 # Include directories
@@ -47,12 +49,27 @@ ament_target_dependencies(iiwa_ik_optimized
   Eigen3
   qpOASES
 )
-ament_target_dependencies(iiwa_ik
+ament_target_dependencies(iiwa_ik_vanilla
   rclcpp
   std_msgs
   sensor_msgs
   Eigen3
 )
+
+ament_target_dependencies(iiwa_ik_min_1_5
+  rclcpp
+  std_msgs
+  sensor_msgs
+  Eigen3
+)
+
+ament_target_dependencies(iiwa_ik_min_3_4
+  rclcpp
+  std_msgs
+  sensor_msgs
+  Eigen3
+)
+
 ament_target_dependencies(iiwa_fk
   rclcpp
   std_msgs
@@ -65,7 +82,13 @@ target_link_libraries(iiwa_ik_optimized
   qpOASES
   Eigen3::Eigen
 )
-target_link_libraries(iiwa_ik
+target_link_libraries(iiwa_ik_vanilla
+  Eigen3::Eigen
+)
+target_link_libraries(iiwa_ik_min_1_5
+  Eigen3::Eigen
+)
+target_link_libraries(iiwa_ik_min_3_4
   Eigen3::Eigen
 )
 target_link_libraries(iiwa_fk
@@ -79,7 +102,13 @@ install(TARGETS joint_traj_pub
 install(TARGETS iiwa_ik_optimized
   DESTINATION lib/${PROJECT_NAME})
 
-install(TARGETS iiwa_ik
+install(TARGETS iiwa_ik_vanilla
+  DESTINATION lib/${PROJECT_NAME}) 
+
+install(TARGETS iiwa_ik_min_1_5
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS iiwa_ik_min_3_4
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS iiwa_fk

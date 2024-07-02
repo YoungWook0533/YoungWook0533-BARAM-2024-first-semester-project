@@ -21,7 +21,7 @@ public:
             "joint_states", 10, std::bind(&IK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
 
         timer_ = this->create_wall_timer(
-            100ms, std::bind(&IK_AnglePublisher::publish_angles, this)); // Default state pub rate set to 0.1s
+            10ms, std::bind(&IK_AnglePublisher::publish_angles, this)); // Default rate set to 0.01s
     }
 
 private:
@@ -83,18 +83,18 @@ private:
             new_angles = calculate_ik(double_point, initial_angles);
             initial_angles = new_angles;
 
-            Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
-            Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
-            Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
-            Quaterniond temp_quat(temp_rot);
+            // Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
+            // Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
+            // Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
+            // Quaterniond temp_quat(temp_rot);
 
-            double pos_error = (temp_pos - desired_pos).norm();
-            double ori_error = temp_quat.angularDistance(desired_quat);
-            double total_error = pos_error + ori_error;
+            // double pos_error = (temp_pos - desired_pos).norm();
+            // double ori_error = temp_quat.angularDistance(desired_quat);
+            // double total_error = pos_error + ori_error;
 
             i++;
 
-            if (i > 550 && total_error < 0.15)
+            if (i > 1050)
             {
                 break;
             }
@@ -102,7 +102,7 @@ private:
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_time = current_time - start_time;
 
-            if (elapsed_time.count() > 5.0)
+            if (elapsed_time.count() > 10.0)
             {
                 std::cout << "Failed to calculate solution" << std::endl;
                 rclcpp::shutdown();
@@ -232,26 +232,21 @@ private:
         u_d.tail<3>() = angle_axis_des.axis() * angle_axis_des.angle();
 
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
-        Eigen::MatrixXd Kp = 7.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
-
-        // Joint limits
-        const double joint_max_limits[7] = {2.96, 2.09, 2.96, 2.09, 2.96, 2.09, 3.05};
-        const double joint_min_limits[7] = {-2.96, -2.09, -2.96, -2.09, -2.96, -2.09, -3.05};
+        Eigen::MatrixXd Kp = 9.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
         // Define the gradient for the optimal target function
         Eigen::VectorXd gradH(7);
         gradH.setZero();
 
-        gradH(1) = 2 * initial_angles[1];
-        gradH(5) = 2 * initial_angles[5];
+        gradH(3) = 2 * initial_angles[3];
+        gradH(4) = 2 * initial_angles[4];
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
 
         std::vector<double> new_angles(7);
         for (size_t i = 0; i < 7; ++i)
         {
-            new_angles[i] = initial_angles[i] + 0.1 * q_dot[i];
-            new_angles[i] = std::min(std::max(new_angles[i], joint_min_limits[i]), joint_max_limits[i]); // Ensure result is within joint limits
+            new_angles[i] = initial_angles[i] + 0.01 * q_dot[i];
         }
 
         return new_angles;

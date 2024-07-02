@@ -17,7 +17,7 @@ public:
         joint_names_ = {"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"};
 
         // Set the time from start
-        point_.time_from_start = rclcpp::Duration(6, 0);   // Trajectory time_from_start set to 1s
+        point_.time_from_start = rclcpp::Duration(6, 0);   // Trajectory time_from_start set to 6s
     }
 
 private:
@@ -54,7 +54,7 @@ private:
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    std::cout << "* Default state pub rate set to 0.1s" << std::endl;
+    std::cout << "* Trajectory time_from_start set to 6s" << std::endl;
     auto node = std::make_shared<ManipulatorControllerNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();
