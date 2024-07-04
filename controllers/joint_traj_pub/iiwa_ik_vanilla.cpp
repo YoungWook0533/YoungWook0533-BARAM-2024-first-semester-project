@@ -1,5 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
+#include "std_msgs/msg/float32.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include <Eigen/Dense>
 #include <vector>
@@ -16,6 +17,7 @@ public:
         : Node("ik_angle_publisher")
     {
         publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("new_angles", 10);
+        manipulability_publisher_ = this->create_publisher<std_msgs::msg::Float32>("manipulability", 10);
 
         subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
             "joint_states", 10, std::bind(&IK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
@@ -117,6 +119,12 @@ private:
             message.data.push_back(static_cast<float>(angle));
         }
 
+        // Calculate and publish manipulability
+        double manipulability = calculate_manipulability(new_angles);
+        auto manipulability_msg = std_msgs::msg::Float32();
+        manipulability_msg.data = static_cast<float>(manipulability);
+        manipulability_publisher_->publish(manipulability_msg);
+
         // Print messages for debug
         Eigen::Matrix4d final_transform = forward_kinematics(new_angles);
         Eigen::Vector3d final_pos = final_transform.block<3, 1>(0, 3);
@@ -141,6 +149,13 @@ private:
         
         // Shutdown the node after publishing
         rclcpp::shutdown();
+    }
+
+    double calculate_manipulability(const std::vector<double> &joint_angles)
+    {
+        Eigen::MatrixXd J = jacobian(joint_angles);
+        double manipulability = sqrt((J * J.transpose()).determinant());
+        return manipulability;
     }
 
     Eigen::Vector3d quaternionToRPY(const Quaterniond &q)
@@ -277,6 +292,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr manipulability_publisher_;
 };
 
 int main(int argc, char *argv[])
