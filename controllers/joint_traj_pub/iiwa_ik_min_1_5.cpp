@@ -83,15 +83,6 @@ private:
             new_angles = calculate_ik(double_point, initial_angles);
             initial_angles = new_angles;
 
-            // Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
-            // Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
-            // Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
-            // Quaterniond temp_quat(temp_rot);
-
-            // double pos_error = (temp_pos - desired_pos).norm();
-            // double ori_error = temp_quat.angularDistance(desired_quat);
-            // double total_error = pos_error + ori_error;
-
             i++;
 
             if (i > 1050)
@@ -208,6 +199,38 @@ private:
         return invJ;
     }
 
+    VectorXd calculateJoint_1_5_Gradient(const std::vector<double> &joint_angles)
+    {
+        VectorXd Q(7);
+        for (size_t i = 0; i < 7; ++i)
+        {
+            Q[i] = joint_angles[i];
+        }
+
+        double epsilon = 1e-6;  // Small value for numerical differentiation
+
+        // Gradient vector for the objective function q[1]^2 + q[5]^2
+        VectorXd gradient = VectorXd::Zero(7);
+
+        // Evaluate the function at Q
+        double fQ = Q[1] * Q[1] + Q[5] * Q[5];
+
+        // Numerical differentiation
+        for (int i = 0; i < 7; ++i)
+        {
+            VectorXd Q_epsilon = Q;
+            Q_epsilon(i) += epsilon;
+
+            // Evaluate the function at Q_epsilon
+            double fQ_epsilon = Q_epsilon[1] * Q_epsilon[1] + Q_epsilon[5] * Q_epsilon[5];
+
+            // Compute the partial derivative
+            gradient(i) = (fQ_epsilon - fQ) / epsilon;
+        }
+
+        return gradient;
+    }
+
     std::vector<double> calculate_ik(const std::vector<double> &target, const std::vector<double> &initial_angles)
     {
         Eigen::Vector3d p_des(target[0], target[1], target[2]);
@@ -234,12 +257,8 @@ private:
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
         Eigen::MatrixXd Kp = 9.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
-        // Define the gradient for the optimal target function
-        Eigen::VectorXd gradH(7);
-        gradH.setZero();
-
-        gradH(1) = 2 * initial_angles[1];
-        gradH(5) = 2 * initial_angles[5];
+        // Calculate the joint limit gradient
+        Eigen::VectorXd gradH = calculateJoint_1_5_Gradient(initial_angles);
 
         Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
 

@@ -5,9 +5,11 @@
 #include <vector>
 #include <iomanip>
 #include <chrono>
+#include <qpOASES.hpp>
 
 using namespace std::chrono_literals;
 using namespace Eigen;
+using namespace qpOASES;
 
 class IK_AnglePublisher : public rclcpp::Node
 {
@@ -83,9 +85,18 @@ private:
             new_angles = calculate_ik(double_point, initial_angles);
             initial_angles = new_angles;
 
+            Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
+            Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
+            Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
+            Quaterniond temp_quat(temp_rot);
+
+            double pos_error = (temp_pos - desired_pos).norm();
+            double ori_error = temp_quat.angularDistance(desired_quat);
+            double total_error = pos_error + ori_error;
+
             i++;
 
-            if (i > 1050)
+            if (i > 2000 && total_error < 0.05)
             {
                 break;
             }
@@ -190,55 +201,12 @@ private:
         return J;
     }
 
-    Eigen::MatrixXd computeDampedPseudoInverse(const Eigen::MatrixXd &J, double lambda)
-    {
-        Eigen::MatrixXd I = Eigen::MatrixXd::Identity(6, 6);
-        Eigen::MatrixXd dampedJ = J * J.transpose() + lambda * lambda * I;
-        Eigen::MatrixXd invJ = J.transpose() * dampedJ.inverse();
-
-        return invJ;
-    }
-
-    VectorXd calculateJoint_3_4_Gradient(const std::vector<double> &joint_angles)
-    {
-        VectorXd Q(7);
-        for (size_t i = 0; i < 7; ++i)
-        {
-            Q[i] = joint_angles[i];
-        }
-
-        double epsilon = 1e-6;  // Small value for numerical differentiation
-
-        // Gradient vector for the objective function q[1]^2 + q[5]^2
-        VectorXd gradient = VectorXd::Zero(7);
-
-        // Evaluate the function at Q
-        double fQ = Q[3] * Q[3] + Q[4] * Q[4];
-
-        // Numerical differentiation
-        for (int i = 0; i < 7; ++i)
-        {
-            VectorXd Q_epsilon = Q;
-            Q_epsilon(i) += epsilon;
-
-            // Evaluate the function at Q_epsilon
-            double fQ_epsilon = Q_epsilon[3] * Q_epsilon[3] + Q_epsilon[4] * Q_epsilon[4];
-
-            // Compute the partial derivative
-            gradient(i) = (fQ_epsilon - fQ) / epsilon;
-        }
-
-        return gradient;
-    }
-
     std::vector<double> calculate_ik(const std::vector<double> &target, const std::vector<double> &initial_angles)
     {
         Eigen::Vector3d p_des(target[0], target[1], target[2]);
         Quaterniond q_des(target[6], target[3], target[4], target[5]);
 
         Eigen::MatrixXd J = jacobian(initial_angles);
-        Eigen::MatrixXd invJ = computeDampedPseudoInverse(J, 0.3);
-
         Eigen::Matrix4d T_cur = forward_kinematics(initial_angles);
         Eigen::Vector3d p_cur = T_cur.block<3, 1>(0, 3);
         Eigen::Matrix3d R_cur = T_cur.block<3, 3>(0, 0);
@@ -257,15 +225,58 @@ private:
         Eigen::VectorXd u_dot_des = Eigen::VectorXd::Zero(6); // Zero desired velocity
         Eigen::MatrixXd Kp = 9.0 * Eigen::MatrixXd::Identity(6, 6); // Proportional gain matrix
 
-        // Calculate the joint limit gradient
-        Eigen::VectorXd gradH = calculateJoint_3_4_Gradient(initial_angles);
+        // Optimize using QP
 
-        Eigen::VectorXd q_dot = invJ * (u_dot_des + Kp * (u_d - u)) - (Eigen::MatrixXd::Identity(7, 7) - invJ * J) * gradH;
+        int num_variables = 7;
+
+        Eigen::MatrixXd H = 2 * (J.transpose() * J + Eigen::MatrixXd::Identity(num_variables, num_variables)); // Hessian
+        Eigen::VectorXd g = -2 * J.transpose() * (u_d - u); // Gradient
+
+        // Joint limits
+        Eigen::VectorXd q_max(7);
+        q_max << 2.96, 2.09, 2.96, 2.09, 2.96, 2.09, 3.05;
+        Eigen::VectorXd q_min(7);
+        q_min << -2.96, -2.09, -2.96, -2.09, -2.96, -2.09, -3.05;
+
+        Eigen::VectorXd lb = q_min - Eigen::VectorXd::Map(initial_angles.data(), initial_angles.size());
+        Eigen::VectorXd ub = q_max - Eigen::VectorXd::Map(initial_angles.data(), initial_angles.size());
+
+        // Define QP
+        QProblem qp(num_variables, 0);
+        Options options;
+        qp.setOptions(options);
+
+        int nWSR = 100;
+        real_t H_qpoases[7 * 7];
+        real_t g_qpoases[7];
+        real_t lb_qpoases[7];
+        real_t ub_qpoases[7];
+
+        for (int i = 0; i < num_variables; ++i)
+        {
+            for (int j = 0; j < num_variables; ++j)
+            {
+                H_qpoases[i * num_variables + j] = H(i, j);
+            }
+            g_qpoases[i] = g(i);
+            lb_qpoases[i] = lb(i);
+            ub_qpoases[i] = ub(i);
+        }
+
+        // Solve QP problem
+        returnValue status = qp.init(H_qpoases, g_qpoases, nullptr, lb_qpoases, ub_qpoases, nullptr, nullptr, nWSR);
+        if (status != SUCCESSFUL_RETURN) {
+            std::cerr << "QP problem initialization failed with status: " << status << std::endl;
+            return initial_angles; // Return initial angles if QP fails
+        }
+
+        real_t xOpt[7];
+        qp.getPrimalSolution(xOpt);
 
         std::vector<double> new_angles(7);
         for (size_t i = 0; i < 7; ++i)
         {
-            new_angles[i] = initial_angles[i] + 0.01 * q_dot[i];
+            new_angles[i] = initial_angles[i] + 0.01 * xOpt[i];
         }
 
         return new_angles;

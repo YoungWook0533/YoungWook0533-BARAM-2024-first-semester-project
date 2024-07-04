@@ -20,6 +20,7 @@ find_package(qpOASES REQUIRED)
 
 # Add executable
 add_executable(joint_traj_pub joint_traj_pub/joint_traj_pub.cpp)
+add_executable(iiwa_ik_optimized_qp joint_traj_pub/iiwa_ik_optimized_qp.cpp)
 add_executable(iiwa_ik_optimized joint_traj_pub/iiwa_ik_optimized.cpp)
 add_executable(iiwa_ik_vanilla joint_traj_pub/iiwa_ik_vanilla.cpp)
 add_executable(iiwa_ik_min_1_5 joint_traj_pub/iiwa_ik_min_1_5.cpp)
@@ -41,6 +42,13 @@ ament_target_dependencies(joint_traj_pub
   rclcpp
   std_msgs
   trajectory_msgs
+)
+ament_target_dependencies(iiwa_ik_optimized_qp
+  rclcpp
+  std_msgs
+  sensor_msgs
+  Eigen3
+  qpOASES
 )
 ament_target_dependencies(iiwa_ik_optimized
   rclcpp
@@ -78,6 +86,10 @@ ament_target_dependencies(iiwa_fk
 )
 
 # Link libraries
+target_link_libraries(iiwa_ik_optimized_qp
+  qpOASES
+  Eigen3::Eigen
+)
 target_link_libraries(iiwa_ik_optimized
   qpOASES
   Eigen3::Eigen
@@ -97,6 +109,9 @@ target_link_libraries(iiwa_fk
 
 # Install executable
 install(TARGETS joint_traj_pub
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS iiwa_ik_optimized_qp
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS iiwa_ik_optimized
