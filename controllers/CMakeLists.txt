@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(qpOASES REQUIRED)
 # uncomment the following section in order to fill in
@@ -47,6 +48,7 @@ ament_target_dependencies(iiwa_ik_optimized_qp
   rclcpp
   std_msgs
   sensor_msgs
+  visualization_msgs
   Eigen3
   qpOASES
 )
@@ -54,6 +56,7 @@ ament_target_dependencies(iiwa_ik_optimized
   rclcpp
   std_msgs
   sensor_msgs
+  visualization_msgs
   Eigen3
   qpOASES
 )
@@ -61,6 +64,7 @@ ament_target_dependencies(iiwa_ik_vanilla
   rclcpp
   std_msgs
   sensor_msgs
+  visualization_msgs
   Eigen3
 )
 
@@ -68,6 +72,7 @@ ament_target_dependencies(iiwa_ik_min_1_5
   rclcpp
   std_msgs
   sensor_msgs
+  visualization_msgs
   Eigen3
 )
 
@@ -75,6 +80,7 @@ ament_target_dependencies(iiwa_ik_min_3_4
   rclcpp
   std_msgs
   sensor_msgs
+  visualization_msgs
   Eigen3
 )
 

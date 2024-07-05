@@ -6,6 +6,7 @@
 #include <vector>
 #include <iomanip>
 #include <chrono>
+#include <visualization_msgs/msg/marker.hpp>
 
 using namespace std::chrono_literals;
 using namespace Eigen;
@@ -18,6 +19,7 @@ public:
     {
         publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("new_angles", 10);
         manipulability_publisher_ = this->create_publisher<std_msgs::msg::Float32>("manipulability", 10);
+        marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
 
         subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
             "joint_states", 10, std::bind(&IK_AnglePublisher::joint_states_callback, this, std::placeholders::_1));
@@ -63,6 +65,9 @@ private:
             double_point[4] = q.y();
             double_point[5] = q.z();
             double_point[6] = q.w();
+
+            Eigen::Vector3d desired_pos(double_point[0], double_point[1], double_point[2]);
+            publish_marker(desired_pos); // Publish the marker
         }
 
         if (current_angles.size() != 7)
@@ -149,6 +154,36 @@ private:
         
         // Shutdown the node after publishing
         rclcpp::shutdown();
+    }
+
+    void publish_marker(const Eigen::Vector3d &desired_pos)
+    {
+        auto marker = visualization_msgs::msg::Marker();
+        marker.header.frame_id = "iiwa_base";
+        marker.header.stamp = this->now();
+        marker.ns = "desired_point";
+        marker.id = 0;
+        marker.type = visualization_msgs::msg::Marker::SPHERE;
+        marker.action = visualization_msgs::msg::Marker::ADD;
+
+        marker.pose.position.x = desired_pos.x();
+        marker.pose.position.y = desired_pos.y();
+        marker.pose.position.z = desired_pos.z() + 0.5;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+        marker.scale.x = 0.07;
+        marker.scale.y = 0.07;
+        marker.scale.z = 0.07;
+
+        marker.color.a = 1.0;
+        marker.color.r = 1.0;
+        marker.color.g = 0.0;
+        marker.color.b = 0.0;
+
+        marker_publisher_->publish(marker);
     }
 
     double calculate_manipulability(const std::vector<double> &joint_angles)
@@ -293,6 +328,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr manipulability_publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_publisher_;
 };
 
 int main(int argc, char *argv[])
