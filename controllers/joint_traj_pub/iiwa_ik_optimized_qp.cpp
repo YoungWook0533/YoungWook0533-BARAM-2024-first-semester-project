@@ -37,6 +37,7 @@ private:
 
         if (joint_positions.size() == 7)
         {
+            std::lock_guard<std::mutex> lock(mutex_);
             current_angles = joint_positions;
         }
         else
@@ -47,6 +48,8 @@ private:
 
     void publish_angles()
     {
+        auto message = std_msgs::msg::Float32MultiArray();
+
         if (first_time)
         {
             first_time = false;
@@ -72,90 +75,39 @@ private:
             publish_marker(desired_pos); // Publish the marker
         }
 
-        if (current_angles.size() != 7)
         {
-            std::cout << "Waiting for initial joint states..." << std::endl;
-            return;
-        }
-
-        std::vector<double> initial_angles = current_angles;
-        std::vector<double> new_angles = initial_angles;
-
-        int i = 0;
-        Eigen::Vector3d desired_pos(double_point[0], double_point[1], double_point[2]);
-        Quaterniond desired_quat(double_point[6], double_point[3], double_point[4], double_point[5]);
-
-        auto start_time = std::chrono::high_resolution_clock::now();
-
-        while (true)
-        {
-            new_angles = calculate_ik(double_point, initial_angles);
-            initial_angles = new_angles;
-
-            Eigen::Matrix4d temp_transform = forward_kinematics(initial_angles);
-            Eigen::Vector3d temp_pos = temp_transform.block<3, 1>(0, 3);
-            Eigen::Matrix3d temp_rot = temp_transform.block<3, 3>(0, 0);
-            Quaterniond temp_quat(temp_rot);
-
-            double pos_error = (temp_pos - desired_pos).norm();
-            double ori_error = temp_quat.angularDistance(desired_quat);
-            double total_error = pos_error + ori_error;
-
-            i++;
-
-            if (i > 2000 && total_error < 0.025)
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (current_angles.size() != 7)
             {
-                break;
-            }
-
-            auto current_time = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_time = current_time - start_time;
-
-            if (elapsed_time.count() > 10.0)
-            {
-                std::cout << "Failed to calculate solution" << std::endl;
-                rclcpp::shutdown();
+                std::cout << "Waiting for initial joint states..." << std::endl;
                 return;
             }
+
+            std::vector<double> new_angles = calculate_ik(double_point, current_angles);
+
+            for (const auto &angle : new_angles)
+            {
+                message.data.push_back(static_cast<float>(angle));
+            }
+            // Print messages for debug
+            std::cout << std::fixed << std::setprecision(6);
+            std::cout << "Desired Position: [" << double_point[0] << ", " << double_point[1] << ", " << double_point[2] << "]" << std::endl;
+            std::cout << "Desired Orientation (Quaternion): [" << double_point[3] << ", " << double_point[4] << ", " << double_point[5] << ", " << double_point[6] << "]" << std::endl;
+            std::cout << "Current Angles: ";
+            for (const auto &angle : current_angles)
+            {
+                std::cout << angle << " ";
+            }
+            std::cout << std::endl;
+            std::cout << "New Angles: ";
+            for (const auto &angle : new_angles)
+            {
+                std::cout << angle << " ";
+            }
+            std::cout << std::endl;
+
+            publisher_->publish(message);
         }
-
-        auto message = std_msgs::msg::Float32MultiArray();
-
-        for (const auto &angle : new_angles)
-        {
-            message.data.push_back(static_cast<float>(angle));
-        }
-
-        // Calculate and publish manipulability
-        double manipulability = calculate_manipulability(new_angles);
-        auto manipulability_msg = std_msgs::msg::Float32();
-        manipulability_msg.data = static_cast<float>(manipulability);
-        manipulability_publisher_->publish(manipulability_msg);
-
-        // Print messages for debug
-        Eigen::Matrix4d final_transform = forward_kinematics(new_angles);
-        Eigen::Vector3d final_pos = final_transform.block<3, 1>(0, 3);
-        Eigen::Matrix3d final_rot = final_transform.block<3, 3>(0, 0);
-        Quaterniond final_quat(final_rot);
-        Eigen::Vector3d rpy_des = quaternionToRPY(desired_quat);
-        Eigen::Vector3d rpy_final = quaternionToRPY(final_quat);
-
-        std::cout << std::fixed << std::setprecision(6);
-        std::cout << "Desired Position: [" << double_point[0] << ", " << double_point[1] << ", " << double_point[2] << "]" << std::endl;
-        std::cout << "Desired Orientation: [" << rpy_des[0] << ", " << rpy_des[1] << ", " << rpy_des[2] << "]" << std::endl;
-        std::cout << "Final Position: [" << final_pos[0] << ", " << final_pos[1] << ", " << final_pos[2] << "]" << std::endl;
-        std::cout << "Final Orientation: [" << rpy_final[0] << ", " << rpy_final[1] << ", " << rpy_final[2] << "]" << std::endl;
-        std::cout << "Final Angles: ";
-        for (const auto &angle : new_angles)
-        {
-            std::cout << angle << " ";
-        }
-        std::cout << std::endl;
-
-        publisher_->publish(message);
-        
-        // Shutdown the node after publishing
-        rclcpp::shutdown();
     }
 
     void publish_marker(const Eigen::Vector3d &desired_pos)
@@ -293,7 +245,7 @@ private:
         Options options;
         qp.setOptions(options);
 
-        int nWSR = 100;
+        int nWSR = 15;
         real_t H_qpoases[7 * 7];
         real_t g_qpoases[7];
         real_t lb_qpoases[7];
@@ -319,11 +271,32 @@ private:
 
         real_t xOpt[7];
         qp.getPrimalSolution(xOpt);
+        qp_iterations++;
+
+        // Gradient-based dynamic step size - fixed step size takes too long till convergence
+        double gradient_norm = std::max(0.001, g.norm());   // Prevent step size from being too large
+        double alpha = std::min(0.1, 0.1 / gradient_norm);  // Adjust the step size dynamically
 
         std::vector<double> new_angles(7);
         for (size_t i = 0; i < 7; ++i)
         {
-            new_angles[i] = initial_angles[i] + 0.01 * xOpt[i];
+            new_angles[i] = initial_angles[i] + alpha * xOpt[i];
+        }
+
+
+        Eigen::Matrix4d final_transform = forward_kinematics(new_angles);
+        Eigen::Vector3d final_pos = final_transform.block<3, 1>(0, 3);
+        Eigen::Matrix3d final_rot = final_transform.block<3, 3>(0, 0);
+        Quaterniond final_quat(final_rot);
+
+        double pos_error = (final_pos - p_des).norm();
+        double ori_error = final_quat.angularDistance(q_des);
+        double total_error = pos_error + ori_error;
+
+        if (total_error < 0.01)
+        {
+            std::cout << "Iterations: " << qp_iterations << std::endl;
+            rclcpp::shutdown();
         }
 
         return new_angles;
@@ -351,9 +324,11 @@ private:
         return T;
     }
 
+    int qp_iterations = 0;
     bool first_time = true;
     std::vector<double> current_angles;
     std::vector<double> double_point;
+    std::mutex mutex_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
