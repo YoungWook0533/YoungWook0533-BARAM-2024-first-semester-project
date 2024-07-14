@@ -15,9 +15,6 @@ public:
 
         // Define joint names
         joint_names_ = {"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"};
-
-        // Set the time from start
-        point_.time_from_start = rclcpp::Duration(0, 10);   // Trajectory time_from_start set to 6s
     }
 
 private:
@@ -35,6 +32,24 @@ private:
             joint_positions.push_back(static_cast<double>(angle));
         }
 
+        // Calculate the velocity based on the difference from the previous position
+        if (!previous_joint_positions_.empty()) {
+            double max_joint_velocity = 0.0;
+            for (size_t i = 0; i < joint_positions.size(); ++i) {
+                double velocity = std::abs(joint_positions[i] - previous_joint_positions_[i]) / 0.01; // assuming 0.01s interval
+                if (velocity > max_joint_velocity) {
+                    max_joint_velocity = velocity;
+                }
+            }
+
+            // Adjust the time_from_start based on the maximum velocity
+            if (max_joint_velocity > 2.3562) {
+                point_.time_from_start = rclcpp::Duration(0, static_cast<int>(1e9 * (max_joint_velocity / 2.3562) * 0.01));
+            } else {
+                point_.time_from_start = rclcpp::Duration(0, 10); // Default 0.01s
+            }
+        }
+
         // Populate joint positions
         trajectory_msgs::msg::JointTrajectoryPoint point;
         point.positions = joint_positions;
@@ -44,17 +59,20 @@ private:
         // Publish joint trajectory
         joint_trajectory_publisher_->publish(*joint_trajectory_msg);
 
+        // Update previous joint positions
+        previous_joint_positions_ = joint_positions;
     }
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr joint_angles_subscriber_;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr joint_trajectory_publisher_;
     std::vector<std::string> joint_names_;
     trajectory_msgs::msg::JointTrajectoryPoint point_;
+    std::vector<double> previous_joint_positions_;
 };
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    std::cout << "* Trajectory time_from_start set to 0.01s" << std::endl;
+    std::cout << "* Trajectory time_from_start dynamically adjusted" << std::endl;
     auto node = std::make_shared<ManipulatorControllerNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();

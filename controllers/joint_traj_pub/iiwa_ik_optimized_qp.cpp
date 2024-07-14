@@ -1,6 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
-#include "std_msgs/msg/float32.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include <Eigen/Dense>
 #include <vector>
@@ -20,7 +19,7 @@ public:
         : Node("ik_angle_publisher")
     {
         publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("new_angles", 10);
-        manipulability_publisher_ = this->create_publisher<std_msgs::msg::Float32>("manipulability", 10);
+        error_iteration_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("error_iteration_1", 10);
         marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
 
         subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
@@ -92,7 +91,7 @@ private:
             // Print messages for debug
             std::cout << std::fixed << std::setprecision(6);
             std::cout << "Desired Position: [" << double_point[0] << ", " << double_point[1] << ", " << double_point[2] << "]" << std::endl;
-            std::cout << "Desired Orientation (Quaternion): [" << double_point[3] << ", " << double_point[4] << ", " << double_point[5] << ", " << double_point[6] << "]" << std::endl;
+            std::cout << "Desired Orientation (Quaternion): [" << double_point[3] << ", "<<double_point[4] << ", " << double_point[5] << ", " << double_point[6] << "]" << std::endl;
             std::cout << "Current Angles: ";
             for (const auto &angle : current_angles)
             {
@@ -105,8 +104,15 @@ private:
                 std::cout << angle << " ";
             }
             std::cout << std::endl;
-
+            
             publisher_->publish(message);
+
+            double ee_error = calculate_ee_error(new_angles, double_point);
+            auto error_iteration_msg = std_msgs::msg::Float32MultiArray();
+            error_iteration_msg.data.push_back(static_cast<float>(ee_error));
+            error_iteration_msg.data.push_back(static_cast<float>(qp_iterations));
+
+            error_iteration_publisher_->publish(error_iteration_msg);
         }
     }
 
@@ -140,21 +146,21 @@ private:
         marker_publisher_->publish(marker);
     }
 
-    double calculate_manipulability(const std::vector<double> &joint_angles)
+    double calculate_ee_error(const std::vector<double> &joint_angles, const std::vector<double> &target)
     {
-        Eigen::MatrixXd J = jacobian(joint_angles);
-        double manipulability = sqrt((J * J.transpose()).determinant());
-        return manipulability;
-    }
+        Eigen::Matrix4d T_cur = forward_kinematics(joint_angles);
+        Eigen::Matrix4d T_des = Eigen::Matrix4d::Identity();
+        T_des.block<3, 1>(0, 3) = Eigen::Vector3d(target[0], target[1], target[2]);
+        Quaterniond q_des(target[6], target[3], target[4], target[5]);
+        T_des.block<3, 3>(0, 0) = q_des.toRotationMatrix();
 
-    Eigen::Vector3d quaternionToRPY(const Quaterniond &q)
-    {
-        Eigen::Matrix3d R = q.toRotationMatrix();
-        Eigen::Vector3d rpy;
-        rpy[0] = std::atan2(R(2, 1), R(2, 2)); // Roll
-        rpy[1] = std::atan2(-R(2, 0), std::sqrt(R(2, 1) * R(2, 1) + R(2, 2) * R(2, 2))); // Pitch
-        rpy[2] = std::atan2(R(1, 0), R(0, 0)); // Yaw
-        return rpy;
+        Eigen::Matrix4d T_diff = T_des * T_cur.inverse();
+        Eigen::AngleAxisd angle_axis(T_diff.block<3, 3>(0, 0));
+
+        double pos_error = T_diff.block<3, 1>(0, 3).norm();
+        double ori_error = angle_axis.angle();
+
+        return pos_error + ori_error;
     }
 
     Eigen::MatrixXd jacobian(const std::vector<double> &joint_angles)
@@ -271,18 +277,45 @@ private:
 
         real_t xOpt[7];
         qp.getPrimalSolution(xOpt);
-        qp_iterations++;
 
-        // Gradient-based dynamic step size - fixed step size takes too long till convergence
-        double gradient_norm = std::max(0.001, g.norm());   // Prevent step size from being too large
-        double alpha = std::min(0.1, 0.1 / gradient_norm);  // Adjust the step size dynamically
+        // Gradient-based dynamic step size
+        double gradient_norm = g.norm() + 1e-8;   // Add small value for stability
+        double alpha = std::min(1.0, 1.0 / gradient_norm);  // Adjust the step size dynamically
 
         std::vector<double> new_angles(7);
+
+        const double max_velocities[7] = {1.4835, 1.4835, 1.7453, 1.309, 2.2689, 2.3562, 2.3562};
+
+        // Calculate scaling factor to respect joint velocity limits
+        double scaling_factor = 1.0;
         for (size_t i = 0; i < 7; ++i)
         {
-            new_angles[i] = initial_angles[i] + alpha * xOpt[i];
+            double velocity = std::abs(alpha * xOpt[i] / 0.01); // Velocity for time step of 0.01s
+            if (velocity > max_velocities[i])
+            {
+                double factor = max_velocities[i] / velocity;
+                if (factor < scaling_factor)
+                {
+                    scaling_factor = factor;
+                }
+            }
         }
 
+        // Apply the scaling factor to respect the velocity limits
+        // Starts to oscillate if alpha > 2.0
+        for (size_t i = 0; i < 7; ++i)
+        {
+            new_angles[i] = initial_angles[i] + scaling_factor * alpha * xOpt[i];
+        }
+
+        qp_iterations++;
+
+        double ee_error = calculate_ee_error(new_angles, double_point);
+        auto error_iteration_msg = std_msgs::msg::Float32MultiArray();
+        error_iteration_msg.data.push_back(static_cast<float>(ee_error));
+        error_iteration_msg.data.push_back(static_cast<float>(qp_iterations));
+            
+        error_iteration_publisher_->publish(error_iteration_msg);
 
         Eigen::Matrix4d final_transform = forward_kinematics(new_angles);
         Eigen::Vector3d final_pos = final_transform.block<3, 1>(0, 3);
@@ -293,7 +326,7 @@ private:
         double ori_error = final_quat.angularDistance(q_des);
         double total_error = pos_error + ori_error;
 
-        if (total_error < 0.01)
+        if (total_error < 0.001)
         {
             std::cout << "Iterations: " << qp_iterations << std::endl;
             rclcpp::shutdown();
@@ -301,6 +334,7 @@ private:
 
         return new_angles;
     }
+
 
     Eigen::Matrix4d forward_kinematics(const std::vector<double> &joint_angles)
     {
@@ -332,7 +366,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr manipulability_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr error_iteration_publisher_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_publisher_;
 };
 
